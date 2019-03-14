@@ -82,11 +82,11 @@ def get_info(content, info):
 @click.command()
 @click.argument('router_ip')
 @click.argument('http_id')
-@click.option('--https', default=True, type=bool, help="Set the protocol to https, default=True")
-@click.option('--verify_ssl_certificate', default=True, type=bool, help="If the https option in enable this force the ssl certificate to be verified, default=True")
-@click.option('--user', default=None, type=str, help="default=None")
-@click.option('--password', default=None, type=str, help="default=None")
-@click.option('--info', type=click.Choice(info_choices), default='all')
+@click.option('--user', default=None, type=str, help="The user for the request, default=None.")
+@click.option('--password', default=None, type=str, help="The password for the request, default=None.")
+@click.option('--info', type=click.Choice(info_choices), default='all', help='List of the available data, default=all.')
+@click.option('--https', default=True, type=bool, help="Set the protocol to https, default=True.")
+@click.option('--verify_ssl_certificate', default=True, type=bool, help="If the https option in enable this force the ssl certificate to be verified, default=True.")
 def main(router_ip, http_id, https, verify_ssl_certificate, user, password, info):
     content, code = get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password)
     if code == 200:
