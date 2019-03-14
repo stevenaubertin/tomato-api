@@ -2,6 +2,7 @@ import click
 import requests
 import json
 import itertools
+import re
 
 
 def incrementer(start, iterable):
@@ -37,6 +38,9 @@ info_choices = ['arplist', 'wlnoise', 'wldev', 'dhcpd_static', 'dhcpd_lease', 'a
 def get_info(content, info):
     def clean(seq):
         return filter(lambda x: x != '' and x != None, seq)
+
+    (?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)
+    (.*)=.?\[\s?(\[.*\])?\s?\];
 
     info_groups = clean(content.split(';'))
     info_groups = clean(k.strip().replace('\n','').replace('.split(\'>\')', '').replace('\'','').replace('[', '').replace('1>', '').replace('<', ',').replace(']', '').split('=') for k in info_groups)
