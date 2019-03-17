@@ -5,17 +5,21 @@ import itertools
 import re
 
 
-def incrementer(start, iterable):
-    for i in iterable:
-        ret = (start, i)
-        start+=1
-        yield ret
+info_choices = ['arplist', 'wlnoise', 'wldev', 'dhcpd_static', 'dhcpd_lease', 'all']
+ip_pattern = "((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))"
+mac_pattern = "(([0-9A-F]{2}[:-]){5}([0-9A-F]{2}))"
+interface_pattern = "(\w+\d?)"
+number_pattern = "\s?(-?\d+)\s?"
+hostname_pattern = "(\w+)"
 
 
-def grouper(n, iterable, fillvalue=None):
-    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
-    args = [iter(iterable)] * n
-    return itertools.zip_longest(*args, fillvalue=fillvalue)
+def skip(iterable, count=1):
+        current = 0
+        for i in iterable:
+            if current < count:
+                current += 1
+                continue
+            yield i
 
 
 def get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password):
@@ -34,78 +38,106 @@ def get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, passwor
     return (response.text if response.status_code == 200 else None, response.status_code)
 
 
-info_choices = ['arplist', 'wlnoise', 'wldev', 'dhcpd_static', 'dhcpd_lease', 'all']
-def get_info(content, info):
-    def clean(seq):
-        return filter(lambda x: x != '' and x != None, seq)
+def parse(pattern, content, flags=re.I | re.M):
+    return re.findall(pattern, content, flags=flags)
 
-    #arplist = 
 
-    #'(.*)=.?\[\s?(\[.*\])?\s?\];'
-    matches = re.search(r'(.*)=.*?[[](.*)?[]];', content, flags=re.M | re.I | re.S)
-    # for m in matches.groups():
-    #     print('-------------------------------------------------')
-    #     print(m)
-    #     print()
-    
-    print(matches.group(1))
-    print('-------------------------------------------------')
-    print(matches.group(2))
-    print('-------------------------------------------------')
-    print(matches.group(3))
-    return
-
-    #(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) ip
-    #([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F]) mac
-    #(wlnoise) = \[\s?(-?\d+),(-?\d+)\s?\];
-    #(wlnoise) = \[\s?((-?\d+)(?:,(-?\d+)?)*)\s?\];
-    
-
-    info_groups = clean(content.split(';'))
-    info_groups = clean(k.strip().replace('\n','').replace('.split(\'>\')', '').replace('\'','').replace('[', '').replace('1>', '').replace('<', ',').replace(']', '').split('=') for k in info_groups)
-    info_groups = { str(g[0]).strip():str(g[1]).strip() for g in info_groups }
-
-    info_groups['arplist'] = json.dumps({
-        "arplist":[
-            {"interface":l, "mac":v, "ip":k} for k,v,l in grouper(3, info_groups['arplist'].split(','))
+def parse_arplist(content):
+    matches = parse(r"\['{}','{}','{}'\]".format(ip_pattern, mac_pattern, interface_pattern), content)
+    return json.dumps({
+        "arplist": [ 
+            {
+                "ipv4":ip,
+                "mac":mac,
+                "interface":interface
+            }
+            for ip,mac,_,__,interface in matches 
         ]
     })
 
-    info_groups['wlnoise'] = json.dumps({ 
-        "wlnoise":[ 
-            {"eth{}".format(k):v} for k,v in incrementer(1, info_groups['wlnoise'].split(','))
+
+def parse_wlnoise(content):
+    matches = parse(r"wlnoise = \[({0},{0})+\];".format(number_pattern), content)
+    return json.dumps({
+        "wlnoise":[
+            m for m in skip(list(matches[0]))
         ]
     })
 
-    info_groups['wldev'] = json.dumps({
+
+def parse_static(content):
+    matches = parse(r"{}<{}<{}".format(mac_pattern, ip_pattern, hostname_pattern), content)
+    return json.dumps({
+        "dhcpd_static":[
+            {
+                "mac":mac,
+                "ipv4":ip,
+                "hostname":hostname
+            }
+            for mac, _, __, ip, hostname in matches
+        ]
+    })
+
+
+def parse_wldev(content):
+    matches = parse(r"\['{0}','{1}',{2},{2},{2},{2},{2}".format(interface_pattern, mac_pattern, number_pattern), content)
+    return json.dumps({
         "wldev":[
-            {"interface":a, "mac":b, "noise":c, "TX":d, "RX":e, "lease time":f} for a,b,c,d,e,f,g in grouper(7, info_groups['wldev'].split(','))
-        ]
-    })
-    
-    info_groups['dhcpd_static'] = json.dumps({
-        'dhcpd_static':[
-            {"mac":a, "ip":b, "hostname":c } for a,b,c in grouper(3, info_groups['dhcpd_static'][:-1].split(','))
+            {
+                "interface":interface,
+                "mac":mac,
+                "noise":noise,
+                "tx":tx,
+                "rx":rx,
+                "lease":lease
+            }
+            for interface, mac, _, __, noise, tx, rx, lease, l in list(matches)
         ]
     })
 
-    info_groups['dhcpd_lease'] = json.dumps({
-        'dhcpd_lease':[
-            {"hostname":a, "ip":b, "mac":c, "lease":d+e} for a,b,c,d,e in grouper(5, info_groups['dhcpd_lease'].split(','))
-        ]
-    })    
 
-    return json.dumps(info_groups) if info == 'all' else info_groups[info]
+def parse_lease(content):
+    matches = parse(r"'{}','{}','{}','(\d?\s?\w*,\s?\d?\d?:\d?\d?:\d?\d?)".format(hostname_pattern, ip_pattern, mac_pattern), content)
+    return json.dumps({
+        "dhcpd_lease":[
+            {
+                "hostname":hostname,
+                "interface":interface,
+                "mac":mac,
+                "lease":lease
+            }
+            for hostname, interface, mac, _, __, lease in matches
+        ]
+    })
+
+
+def get_info(content, info):
+    if info == 'arplist':
+        return parse_arplist(content)
+    elif info == 'wlnoise':
+        return parse_wlnoise(content)
+    elif info == 'wldev':
+        return parse_wldev(content)
+    elif info == 'dhcpd_static':
+        return parse_static(content)
+    elif info == 'dhcpd_lease':
+        return parse_lease(content)
+    else:
+        return json.dumps({
+            "all":{
+
+            }
+        })
 
 
 @click.command()
 @click.argument('router_ip')
 @click.argument('http_id')
-@click.option('--user', default=None, type=str, help="The user for the request, default=None.")
-@click.option('--password', default=None, type=str, help="The password for the request, default=None.")
-@click.option('--info', type=click.Choice(info_choices), default='all', help='List of the available data, default=all.')
-@click.option('--https', default=True, type=bool, help="Set the protocol to https, default=True.")
-@click.option('--verify_ssl_certificate', default=True, type=bool, help="If the https option in enable this force the ssl certificate to be verified, default=True.")
+@click.option('--https', default=True, type=bool, help="Set the protocol to https, default=True")
+@click.option('--verify_ssl_certificate', default=True, type=bool, help="If the https option in enable this force the ssl certificate to be verified, default=True")
+@click.option('--user', default=None, type=str, help="default=None")
+@click.option('--password', default=None, type=str, help="default=None")
+@click.option('--info', type=click.Choice(info_choices), default='all')
 def main(router_ip, http_id, https, verify_ssl_certificate, user, password, info):
     content, code = get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password)
     if code == 200:
