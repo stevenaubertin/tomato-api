@@ -22,22 +22,6 @@ def skip(iterable, count=1):
             yield i
 
 
-def get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password):
-    params = {
-        "_http_id":http_id,
-        "_nextwait":"1",
-        "exec":"devlist"
-    }
-    response = requests.get(
-        ''.join([ 'https://' if https else 'http://', router_ip, '/update.cgi']),
-        auth=(user, password),
-        headers={ 'cache-control': "no-cache" },
-        params=params,
-        verify=verify_ssl_certificate and https
-    )
-    return (response.text if response.status_code == 200 else None, response.status_code)
-
-
 def parse(pattern, content, flags=re.I | re.M):
     return re.findall(pattern, content, flags=flags)
 
@@ -109,6 +93,22 @@ def parse_lease(content):
             for hostname, interface, mac, _, __, lease in matches
         ]
     })
+
+
+def get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password):
+    params = {
+        "_http_id":http_id,
+        "_nextwait":"1",
+        "exec":"devlist"
+    }
+    response = requests.get(
+        ''.join([ 'https://' if https else 'http://', router_ip, '/update.cgi']),
+        auth=(user, password),
+        headers={ 'cache-control': "no-cache" },
+        params=params,
+        verify=verify_ssl_certificate and https
+    )
+    return (response.text if response.status_code == 200 else None, response.status_code)
 
 
 def get_info(content, info):
