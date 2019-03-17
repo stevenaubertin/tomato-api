@@ -39,8 +39,27 @@ def get_info(content, info):
     def clean(seq):
         return filter(lambda x: x != '' and x != None, seq)
 
-    (?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)
-    (.*)=.?\[\s?(\[.*\])?\s?\];
+    #arplist = 
+
+    #'(.*)=.?\[\s?(\[.*\])?\s?\];'
+    matches = re.search(r'(.*)=.*?[[](.*)?[]];', content, flags=re.M | re.I | re.S)
+    # for m in matches.groups():
+    #     print('-------------------------------------------------')
+    #     print(m)
+    #     print()
+    
+    print(matches.group(1))
+    print('-------------------------------------------------')
+    print(matches.group(2))
+    print('-------------------------------------------------')
+    print(matches.group(3))
+    return
+
+    #(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) ip
+    #([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F]) mac
+    #(wlnoise) = \[\s?(-?\d+),(-?\d+)\s?\];
+    #(wlnoise) = \[\s?((-?\d+)(?:,(-?\d+)?)*)\s?\];
+    
 
     info_groups = clean(content.split(';'))
     info_groups = clean(k.strip().replace('\n','').replace('.split(\'>\')', '').replace('\'','').replace('[', '').replace('1>', '').replace('<', ',').replace(']', '').split('=') for k in info_groups)
