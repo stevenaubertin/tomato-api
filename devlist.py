@@ -5,7 +5,7 @@ import itertools
 import re
 
 
-info_choices = ['arplist', 'wlnoise', 'wldev', 'dhcpd_static', 'dhcpd_lease', 'all']
+info_choices = ['arplist', 'wlnoise', 'wldev', 'dhcpd_static', 'dhcpd_lease']
 ip_pattern = "((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))"
 mac_pattern = "(([0-9A-F]{2}[:-]){5}([0-9A-F]{2}))"
 interface_pattern = "(\w+\d?)"
@@ -122,12 +122,6 @@ def get_info(content, info):
         return parse_static(content)
     elif info == 'dhcpd_lease':
         return parse_lease(content)
-    else:
-        return json.dumps({
-            "all":{
-
-            }
-        })
 
 
 @click.command()
@@ -137,7 +131,7 @@ def get_info(content, info):
 @click.option('--verify_ssl_certificate', default=True, type=bool, help="If the https option in enable this force the ssl certificate to be verified, default=True")
 @click.option('--user', default=None, type=str, help="default=None")
 @click.option('--password', default=None, type=str, help="default=None")
-@click.option('--info', type=click.Choice(info_choices), default='all')
+@click.option('--info', type=click.Choice(info_choices), default='wldev')
 def main(router_ip, http_id, https, verify_ssl_certificate, user, password, info):
     content, code = get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password)
     if code == 200:
