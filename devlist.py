@@ -1,144 +1,99 @@
-import click
+#!/bin/python
+
+from logging import error
 import requests
-import json
-import itertools
+from requests.auth import HTTPBasicAuth
 import re
+import json
+import sys
+import urllib3
+
+name_regex_str = r"[a-zA-Z0-9]*-?[a-zA-Z0-9]+"
+ipv4_regex_str = r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
+ipv6_regex_str = r"[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}"
+
+lease_regex = re.compile(
+    "\[('{}','{}','{}')".format(name_regex_str, ipv4_regex_str, ipv6_regex_str), 
+    re.IGNORECASE | re.MULTILINE
+)
+arplist_regex = re.compile(
+    "'{}','{}','{}'".format(ipv4_regex_str, ipv6_regex_str, name_regex_str),
+    re.IGNORECASE | re.MULTILINE
+)
+statics_regex = re.compile(
+    "{}<{}<{}".format(ipv6_regex_str, ipv4_regex_str, name_regex_str),
+    re.IGNORECASE | re.MULTILINE
+)
 
 
-info_choices = ['arplist', 'wlnoise', 'wldev', 'dhcpd_static', 'dhcpd_lease']
-ip_pattern = "((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))"
-mac_pattern = "(([0-9A-F]{2}[:-]){5}([0-9A-F]{2}))"
-interface_pattern = "(\w+\d?)"
-number_pattern = "\s?(-?\d+)\s?"
-hostname_pattern = "(\w+)"
+def get_devices(username, password) -> str:
+    urllib3.disable_warnings()
+    basic = HTTPBasicAuth(username, password)
+    response = requests.get('https://192.168.1.1/status-devices.asp?_=1659816271622', auth=basic, verify=False)
 
+    devlist = response.text
+    lease = [str(i).replace("'", '').split(',') for i in lease_regex.findall(devlist)]
+    statics = [str(i).replace("'", '').split('<') for i in statics_regex.findall(devlist)]
+    arplist = [str(i).replace("'", '').split(',') for i in arplist_regex.findall(devlist)]
 
-def skip(iterable, count=1):
-        current = 0
-        for i in iterable:
-            if current < count:
-                current += 1
-                continue
-            yield i
+    # Format lease
+    l = [
+        {
+            'name': i[0],
+            'mac': i[1] if ':' in i[1] else i[2],
+            'ip': i[1] if ':' in i[2] else i[2],
+        } for i in lease
+    ]
 
+    # Format statics
+    s = [
+        {
+            'name': i[-1],
+            'mac': i[0] if ':' in i[0] else i[1],
+            'ip': i[0] if ':' in i[1] else i[1],
+        } for i in statics
+    ]
 
-def parse(pattern, content, flags=re.I | re.M):
-    return re.findall(pattern, content, flags=flags)
+    # Format arplist
+    def find_name(mac) -> str:
+        r = [i for i in filter(lambda x: x['mac'] == mac, s + l)]
+        return r[0]['name'] if len(r) > 0 else ''
 
+    arp = {}
+    for d in [{i[-1]:{j for j in i[:-1]}} for i in arplist]:
+        k = [*d][0] # stupid python way of getting first keys
+        values = [i for i in d[k]]
+        mac = values[0] if ':' in values[0] else values[1]
+        ip = values[1] if ':' in values[0] else values[0]
+        name = find_name(mac)
+        v = {
+            'name': name,
+            'mac': mac,
+            'ip': ip
+        }
+        if k in arp.keys():
+            arp[k].append(v)
+        else:
+            arp[k] = [v]
 
-def parse_arplist(content):
-    matches = parse(r"\['{}','{}','{}'\]".format(ip_pattern, mac_pattern, interface_pattern), content)
     return json.dumps({
-        "arplist": [ 
-            {
-                "ipv4":ip,
-                "mac":mac,
-                "interface":interface
-            }
-            for ip,mac,_,__,interface in matches 
-        ]
+        'arplist': arp,
+        'lease': l,
+        'statics': s
     })
 
 
-def parse_wlnoise(content):
-    matches = parse(r"wlnoise = \[({0},{0})+\];".format(number_pattern), content)
-    return json.dumps({
-        "wlnoise":[
-            m for m in skip(list(matches[0]))
-        ]
-    })
+def main(argv):
+    if len(argv) == 0 :
+        error('username and password are required, \nUSAGE :\n python '+__file__.split('\\')[-1]+' <username> <password>')
+        sys.exit(-1)
+
+    username = argv[0]
+    password = argv[1]
+
+    devices = get_devices(username, password)
+    print(devices)
 
 
-def parse_static(content):
-    matches = parse(r"{}<{}<{}".format(mac_pattern, ip_pattern, hostname_pattern), content)
-    return json.dumps({
-        "dhcpd_static":[
-            {
-                "mac":mac,
-                "ipv4":ip,
-                "hostname":hostname
-            }
-            for mac, _, __, ip, hostname in matches
-        ]
-    })
-
-
-def parse_wldev(content):
-    matches = parse(r"\['{0}','{1}',{2},{2},{2},{2},{2}".format(interface_pattern, mac_pattern, number_pattern), content)
-    return json.dumps({
-        "wldev":[
-            {
-                "interface":interface,
-                "mac":mac,
-                "noise":noise,
-                "tx":tx,
-                "rx":rx,
-                "lease":lease
-            }
-            for interface, mac, _, __, noise, tx, rx, lease, l in list(matches)
-        ]
-    })
-
-
-def parse_lease(content):
-    matches = parse(r"'{}','{}','{}','(\d?\s?\w*,\s?\d?\d?:\d?\d?:\d?\d?)".format(hostname_pattern, ip_pattern, mac_pattern), content)
-    return json.dumps({
-        "dhcpd_lease":[
-            {
-                "hostname":hostname,
-                "interface":interface,
-                "mac":mac,
-                "lease":lease
-            }
-            for hostname, interface, mac, _, __, lease in matches
-        ]
-    })
-
-
-def get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password):
-    params = {
-        "_http_id":http_id,
-        "_nextwait":"1",
-        "exec":"devlist"
-    }
-    response = requests.get(
-        ''.join([ 'https://' if https else 'http://', router_ip, '/update.cgi']),
-        auth=(user, password),
-        headers={ 'cache-control': "no-cache" },
-        params=params,
-        verify=verify_ssl_certificate and https
-    )
-    return (response.text if response.status_code == 200 else None, response.status_code)
-
-
-def get_info(content, info):
-    if info == 'arplist':
-        return parse_arplist(content)
-    elif info == 'wlnoise':
-        return parse_wlnoise(content)
-    elif info == 'wldev':
-        return parse_wldev(content)
-    elif info == 'dhcpd_static':
-        return parse_static(content)
-    elif info == 'dhcpd_lease':
-        return parse_lease(content)
-
-
-@click.command()
-@click.argument('router_ip')
-@click.argument('http_id')
-@click.option('--https', default=True, type=bool, help="Set the protocol to https, default=True")
-@click.option('--verify_ssl_certificate', default=True, type=bool, help="If the https option in enable this force the ssl certificate to be verified, default=True")
-@click.option('--user', default=None, type=str, help="default=None")
-@click.option('--password', default=None, type=str, help="default=None")
-@click.option('--info', type=click.Choice(info_choices), default='wldev')
-def main(router_ip, http_id, https, verify_ssl_certificate, user, password, info):
-    content, code = get_devlist(router_ip, http_id, https, verify_ssl_certificate, user, password)
-    if code == 200:
-        print(get_info(content, info))
-    else:
-        print('Server returned : {}'.format(code))
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
