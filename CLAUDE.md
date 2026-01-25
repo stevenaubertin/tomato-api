@@ -8,15 +8,20 @@ This file provides context for AI assistants working on this project.
 
 ## Architecture
 
-### Single-module design
+### Module structure
 
-The entire application is contained in `src/devlist.py`. This is intentional - the project is small enough that a single module keeps things simple.
+The application consists of two main modules in `src/`:
 
-### Key components
+- **`devlist.py`**: Fetches device lists (DHCP leases, ARP table, static assignments) from `/status-devices.asp`
+- **`staticlist.py`**: Fetches static DHCP entries from `/basic-static.asp`
 
-1. **TLSAdapter** (lines 22-31): Custom HTTPS adapter to handle routers with legacy TLS configurations using relaxed cipher settings.
+Both modules share `TLSAdapter` for legacy TLS support and follow the same patterns.
 
-2. **Regex patterns** (lines 54-70): Three compiled regex patterns parse the router's JavaScript response:
+### Key components (devlist.py)
+
+1. **TLSAdapter**: Custom HTTPS adapter to handle routers with legacy TLS configurations using relaxed cipher settings. Shared by both modules.
+
+2. **Regex patterns**: Three compiled regex patterns parse the router's JavaScript response:
    - `lease_regex`: DHCP lease entries
    - `arplist_regex`: ARP table entries
    - `statics_regex`: Static IP assignments
@@ -27,7 +32,19 @@ The entire application is contained in `src/devlist.py`. This is intentional - t
 
 5. **`filter_by_interface()`**: Filters ARP list by network interface.
 
-6. **`main()`**: CLI entry point using argparse. Loads `.env` file automatically.
+6. **`main()`**: CLI entry point (`tomato-devlist`).
+
+### Key components (staticlist.py)
+
+1. **`DHCPD_STATIC_REGEX`**: Extracts `dhcpd_static` value from router response.
+
+2. **`parse_static_entries()`**: Parses the `MAC<IP<Name<Flag>` format into a list of dicts.
+
+3. **`get_static_list()`**: Fetches and parses static DHCP entries from `/basic-static.asp`.
+
+4. **Format functions**: `format_json()`, `format_table()` for output.
+
+5. **`main()`**: CLI entry point (`tomato-staticlist`).
 
 ### Data flow
 
@@ -44,9 +61,14 @@ Router HTML → Regex parsing → Dict structure → Format function → stdout
 
 ## Testing
 
-Tests are in `tests/test_devlist.py` using pytest with the `responses` library to mock HTTP requests.
+Tests use pytest with the `responses` library to mock HTTP requests.
 
-### Test structure
+### Test files
+
+- **`tests/test_devlist.py`** (38 tests): Tests for the device list module
+- **`tests/test_staticlist.py`** (26 tests): Tests for the static list module
+
+### Test structure (devlist)
 
 - `TestRegexPatterns`: Verify regex patterns match expected formats
 - `TestGetRouterUrl`: URL building tests
@@ -55,22 +77,35 @@ Tests are in `tests/test_devlist.py` using pytest with the `responses` library t
 - `TestOutputFormats`: Format function tests
 - `TestInterfaceFilter`: Filter function tests
 
+### Test structure (staticlist)
+
+- `TestParseStaticEntries`: Parsing logic tests
+- `TestDhcpdStaticRegex`: Regex pattern tests
+- `TestGetRouterUrl`: URL building tests
+- `TestGetStaticList`: Core fetching function tests
+- `TestOutputFormats`: Format function tests
+- `TestCLI`: Command-line interface tests
+
 ### Running tests
 
 ```bash
-# Run all tests
+# Run all tests (64 total)
 pytest tests/ -v
+
+# Run specific module tests
+pytest tests/test_devlist.py -v
+pytest tests/test_staticlist.py -v
 
 # Run specific test class
 pytest tests/test_devlist.py::TestCLI -v
 
-# Run with coverage (if installed)
-pytest tests/ --cov=devlist
+# Run with coverage
+pytest tests/ --cov=src
 ```
 
 ### Mock data
 
-`SAMPLE_ROUTER_RESPONSE` in the test file simulates actual Tomato router HTML output. Use this as reference for the expected format.
+`SAMPLE_ROUTER_RESPONSE` in each test file simulates actual Tomato router HTML output. Use these as reference for expected formats.
 
 ## Common Tasks
 
@@ -94,6 +129,15 @@ pytest tests/ --cov=devlist
 2. Test against `SAMPLE_ROUTER_RESPONSE` in tests
 3. Verify with `TestRegexPatterns` tests
 
+### Adding a new router endpoint module
+
+1. Create `src/<name>.py` following `staticlist.py` as template
+2. Import `TLSAdapter` from `devlist` for HTTPS support
+3. Add CLI entry point in `pyproject.toml` under `[project.scripts]`
+4. Export in `src/__init__.py`
+5. Create `tests/test_<name>.py` with mocked responses
+6. Update documentation (README.md, CLAUDE.md)
+
 ## Dependencies
 
 - **Runtime**: `requests`, `python-dotenv`
@@ -101,7 +145,9 @@ pytest tests/ --cov=devlist
 
 ## Router Response Format
 
-The Tomato router returns HTML with embedded JavaScript. Key variables:
+The Tomato router returns HTML with embedded JavaScript.
+
+### Device list (`/status-devices.asp`)
 
 ```javascript
 // DHCP leases: [name, ip, mac]
@@ -112,6 +158,16 @@ var nvram = { dhcpd_static: 'AA:BB:CC:DD:EE:FF<192.168.1.x<hostname\n...' };
 
 // ARP list: [ip, mac, interface]
 var arplist = [['192.168.1.x','AA:BB:CC:DD:EE:FF','br0'], ...];
+```
+
+### Static list (`/basic-static.asp`)
+
+```javascript
+// Static DHCP entries: MAC<IP<Name<Enabled (separated by >)
+nvram = {
+    'dhcpd_static': 'AA:BB:CC:DD:EE:FF<192.168.1.10<server<1>BB:CC:DD:EE:FF:00<192.168.1.20<desktop<1>'
+};
+// Flag: 1 = enabled, 0 = disabled
 ```
 
 ## Commit Convention
