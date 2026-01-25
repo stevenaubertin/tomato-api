@@ -73,11 +73,22 @@ tomato-devlist admin password --verbose
 
 | Variable | Description |
 |----------|-------------|
-| `TOMATO_ROUTER_IP` | Default router IP address |
+| `TOMATO_USERNAME` | Router admin username |
+| `TOMATO_PASSWORD` | Router admin password |
+| `TOMATO_ROUTER_IP` | Router IP address (default: 192.168.1.1) |
+
+You can set these in a `.env` file:
 
 ```bash
-export TOMATO_ROUTER_IP=192.168.0.1
-tomato-devlist admin password
+TOMATO_USERNAME=admin
+TOMATO_PASSWORD=password
+TOMATO_ROUTER_IP=192.168.1.1
+```
+
+Then run without arguments:
+
+```bash
+tomato-devlist --format table
 ```
 
 ## Output formats
@@ -139,12 +150,15 @@ pytest tests/ -v
 
 ```
 tomato-api/
-├── devlist.py           # Main module
-├── pyproject.toml       # Package configuration
-├── requirements.txt     # Dependencies
+├── src/
+│   ├── __init__.py      # Package exports
+│   └── devlist.py       # Main module
 ├── tests/
 │   ├── __init__.py
 │   └── test_devlist.py  # Unit tests (38 tests)
+├── pyproject.toml       # Package configuration
+├── requirements.txt     # Dependencies
+├── .env                 # Environment variables (not in git)
 └── README.md
 ```
 
@@ -152,6 +166,7 @@ tomato-api/
 
 - Python 3.8+
 - requests
+- python-dotenv
 
 ## License
 

@@ -40,7 +40,7 @@ dev = [
 ]
 
 [project.scripts]
-tomato-devlist = "devlist:main"
+tomato-devlist = "src.devlist:main"
 
 [project.urls]
 Homepage = "https://github.com/x0r/tomato-api"
@@ -48,7 +48,7 @@ Repository = "https://github.com/x0r/tomato-api"
 Issues = "https://github.com/x0r/tomato-api/issues"
 
 [tool.setuptools]
-py-modules = ["devlist"]
+packages = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -65,7 +65,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["devlist"]
+source = ["src"]
 branch = true
 omit = ["tests/*"]
 

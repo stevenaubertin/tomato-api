@@ -4,7 +4,7 @@ import json
 import pytest
 import responses
 
-from devlist import (
+from src.devlist import (
     get_devices,
     get_router_url,
     main,

@@ -10,22 +10,24 @@ This file provides context for AI assistants working on this project.
 
 ### Single-module design
 
-The entire application is contained in `devlist.py`. This is intentional - the project is small enough that a single module keeps things simple.
+The entire application is contained in `src/devlist.py`. This is intentional - the project is small enough that a single module keeps things simple.
 
 ### Key components
 
-1. **Regex patterns** (lines 38-50): Three compiled regex patterns parse the router's JavaScript response:
+1. **TLSAdapter** (lines 22-31): Custom HTTPS adapter to handle routers with legacy TLS configurations using relaxed cipher settings.
+
+2. **Regex patterns** (lines 54-70): Three compiled regex patterns parse the router's JavaScript response:
    - `lease_regex`: DHCP lease entries
    - `arplist_regex`: ARP table entries
    - `statics_regex`: Static IP assignments
 
-2. **`get_devices()`**: Core function that fetches and parses router data. Returns a dict with `arplist`, `lease`, and `statics` keys.
+3. **`get_devices()`**: Core function that fetches and parses router data. Returns a dict with `arplist`, `lease`, and `statics` keys.
 
-3. **Format functions**: `format_json()`, `format_csv()`, `format_table()` handle output formatting.
+4. **Format functions**: `format_json()`, `format_csv()`, `format_table()` handle output formatting.
 
-4. **`filter_by_interface()`**: Filters ARP list by network interface.
+5. **`filter_by_interface()`**: Filters ARP list by network interface.
 
-5. **`main()`**: CLI entry point using argparse.
+6. **`main()`**: CLI entry point using argparse. Loads `.env` file automatically.
 
 ### Data flow
 
@@ -94,8 +96,8 @@ pytest tests/ --cov=devlist
 
 ## Dependencies
 
-- **Runtime**: `requests` only
-- **Dev**: `pytest`, `pytest-mock`, `responses`
+- **Runtime**: `requests`, `python-dotenv`
+- **Dev**: `pytest`, `pytest-mock`, `pytest-cov`, `responses`
 
 ## Router Response Format
 
@@ -156,5 +158,7 @@ feat(cli): add --interface filter option
 ## Notes
 
 - SSL verification is disabled (`verify=False`) because Tomato routers use self-signed certificates
+- Uses `TLSAdapter` with relaxed cipher settings (`DEFAULT@SECLEVEL=1`) for routers with legacy TLS
+- Credentials can be set via `.env` file (`TOMATO_USERNAME`, `TOMATO_PASSWORD`) or CLI arguments
 - Default router IP is `192.168.1.1` but configurable via `--router` or `TOMATO_ROUTER_IP` env var
 - The `--interface` filter only affects `arplist`, not `lease` or `statics`
