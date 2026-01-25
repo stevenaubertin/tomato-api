@@ -152,10 +152,12 @@ pytest tests/ -v
 tomato-api/
 ├── src/
 │   ├── __init__.py      # Package exports
-│   └── devlist.py       # Main module
+│   ├── devlist.py       # Device list module
+│   └── staticlist.py    # Static DHCP entries module
 ├── tests/
 │   ├── __init__.py
-│   └── test_devlist.py  # Unit tests (38 tests)
+│   ├── test_devlist.py  # Device list tests (38 tests)
+│   └── test_staticlist.py # Static list tests (26 tests)
 ├── pyproject.toml       # Package configuration
 ├── requirements.txt     # Dependencies
 ├── .env                 # Environment variables (not in git)
@@ -167,6 +169,10 @@ tomato-api/
 - Python 3.8+
 - requests
 - python-dotenv
+
+## TODO
+
+- [ ] Update router firmware to [FreshTomato](https://freshtomato.org/) (the actively maintained fork)
 
 ## License
 
