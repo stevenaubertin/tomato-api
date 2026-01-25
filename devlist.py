@@ -10,9 +10,25 @@ import re
 import sys
 from typing import Optional
 
+import ssl
+
+from dotenv import load_dotenv
 import requests
+from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 import urllib3
+
+
+class TLSAdapter(HTTPAdapter):
+    """Custom adapter to handle routers with legacy TLS configurations."""
+
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ctx.set_ciphers('DEFAULT@SECLEVEL=1')
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -85,7 +101,9 @@ def get_devices(username: str, password: str, router_ip: str) -> dict:
     auth = HTTPBasicAuth(username, password)
 
     logger.debug(f"Connecting to router at {url}")
-    response = requests.get(url, auth=auth, verify=False, timeout=30)
+    session = requests.Session()
+    session.mount('https://', TLSAdapter())
+    response = session.get(url, auth=auth, verify=False, timeout=30)
     response.raise_for_status()
     logger.debug(f"Received response: {response.status_code} ({len(response.text)} bytes)")
 
@@ -256,22 +274,35 @@ def filter_by_interface(devices: dict, interface: str) -> dict:
 
 def main(argv: Optional[list] = None) -> int:
     """Main entry point for the CLI."""
+    # Load environment variables from .env file if it exists
+    load_dotenv()
+
     parser = argparse.ArgumentParser(
         description='Fetch device information from a Tomato Router',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  %(prog)s admin password
-  %(prog)s admin password --router 192.168.0.1
-  %(prog)s admin password --format table
-  %(prog)s admin password --format csv > devices.csv
-  %(prog)s admin password --interface br0
-  %(prog)s admin password --verbose
-  TOMATO_ROUTER_IP=192.168.0.1 %(prog)s admin password
+  %(prog)s                              # Use credentials from .env
+  %(prog)s admin password               # Use explicit credentials
+  %(prog)s --router 192.168.0.1
+  %(prog)s --format table
+  %(prog)s --format csv > devices.csv
+  %(prog)s --interface br0
+  %(prog)s --verbose
         '''
     )
-    parser.add_argument('username', help='Router admin username')
-    parser.add_argument('password', help='Router admin password')
+    parser.add_argument(
+        'username',
+        nargs='?',
+        default=os.environ.get('TOMATO_USERNAME'),
+        help='Router admin username (default: $TOMATO_USERNAME)'
+    )
+    parser.add_argument(
+        'password',
+        nargs='?',
+        default=os.environ.get('TOMATO_PASSWORD'),
+        help='Router admin password (default: $TOMATO_PASSWORD)'
+    )
     parser.add_argument(
         '--router', '-r',
         default=os.environ.get('TOMATO_ROUTER_IP', DEFAULT_ROUTER_IP),
@@ -301,6 +332,13 @@ Examples:
 
     args = parser.parse_args(argv)
     setup_logging(args.verbose)
+
+    # Validate required credentials
+    if not args.username or not args.password:
+        parser.error(
+            "Username and password are required. Provide them as arguments "
+            "or set TOMATO_USERNAME and TOMATO_PASSWORD environment variables (or in .env file)."
+        )
 
     try:
         devices = get_devices(args.username, args.password, args.router)
