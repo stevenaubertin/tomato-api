@@ -41,6 +41,7 @@ dev = [
 
 [project.scripts]
 tomato-devlist = "src.devlist:main"
+tomato-staticlist = "src.staticlist:main"
 
 [project.urls]
 Homepage = "https://github.com/stevenaubertin/tomato-api"
