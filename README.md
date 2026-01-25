@@ -1,2 +1,158 @@
 # tomato-api
-Python api to communicate with Tomato Router
+
+Python CLI tool to fetch device information from Tomato Router firmware.
+
+## Features
+
+- Fetch DHCP leases, static assignments, and ARP table entries
+- Multiple output formats: JSON, CSV, and ASCII table
+- Filter results by network interface
+- Configurable router IP via CLI or environment variable
+- Debug logging for troubleshooting
+
+## Installation
+
+### From source
+
+```bash
+git clone https://github.com/stevenaubertin/tomato-api.git
+cd tomato-api
+pip install -e .
+```
+
+### Using pip (local)
+
+```bash
+pip install .
+```
+
+## Usage
+
+### Basic usage
+
+```bash
+tomato-devlist <username> <password>
+```
+
+### Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--router` | `-r` | Router IP address (default: 192.168.1.1) |
+| `--format` | `-f` | Output format: json, csv, table (default: json) |
+| `--pretty` | `-p` | Pretty print JSON output |
+| `--interface` | `-i` | Filter ARP list by interface (e.g., br0) |
+| `--verbose` | `-v` | Enable debug logging |
+
+### Examples
+
+```bash
+# Default JSON output
+tomato-devlist admin password
+
+# Pretty-printed JSON
+tomato-devlist admin password --pretty
+
+# Table format
+tomato-devlist admin password --format table
+
+# CSV export
+tomato-devlist admin password --format csv > devices.csv
+
+# Custom router IP
+tomato-devlist admin password --router 192.168.0.1
+
+# Filter by interface
+tomato-devlist admin password --interface br0
+
+# Debug mode
+tomato-devlist admin password --verbose
+```
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `TOMATO_ROUTER_IP` | Default router IP address |
+
+```bash
+export TOMATO_ROUTER_IP=192.168.0.1
+tomato-devlist admin password
+```
+
+## Output formats
+
+### JSON (default)
+
+```json
+{
+  "arplist": {
+    "br0": [
+      {"name": "desktop", "mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.100"}
+    ]
+  },
+  "lease": [
+    {"name": "desktop", "mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.100"}
+  ],
+  "statics": [
+    {"name": "server", "mac": "AA:BB:CC:DD:EE:02", "ip": "192.168.1.50"}
+  ]
+}
+```
+
+### Table
+
+```
+TYPE    INTERFACE  NAME      IP             MAC
+------  ---------  --------  -------------  -----------------
+lease              desktop   192.168.1.100  AA:BB:CC:DD:EE:01
+static             server    192.168.1.50   AA:BB:CC:DD:EE:02
+arp     br0        desktop   192.168.1.100  AA:BB:CC:DD:EE:01
+```
+
+### CSV
+
+```csv
+type,interface,name,ip,mac
+lease,,desktop,192.168.1.100,AA:BB:CC:DD:EE:01
+static,,server,192.168.1.50,AA:BB:CC:DD:EE:02
+arp,br0,desktop,192.168.1.100,AA:BB:CC:DD:EE:01
+```
+
+## Development
+
+### Setup
+
+```bash
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -e ".[dev]"
+```
+
+### Running tests
+
+```bash
+pytest tests/ -v
+```
+
+### Project structure
+
+```
+tomato-api/
+├── devlist.py           # Main module
+├── pyproject.toml       # Package configuration
+├── requirements.txt     # Dependencies
+├── tests/
+│   ├── __init__.py
+│   └── test_devlist.py  # Unit tests (38 tests)
+└── README.md
+```
+
+## Requirements
+
+- Python 3.8+
+- requests
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.

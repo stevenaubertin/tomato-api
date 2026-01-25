@@ -1,0 +1,119 @@
+# CLAUDE.md
+
+This file provides context for AI assistants working on this project.
+
+## Project Overview
+
+**tomato-api** is a Python CLI tool that fetches device information from Tomato Router firmware. It parses the router's web interface response to extract DHCP leases, static IP assignments, and ARP table entries.
+
+## Architecture
+
+### Single-module design
+
+The entire application is contained in `devlist.py`. This is intentional - the project is small enough that a single module keeps things simple.
+
+### Key components
+
+1. **Regex patterns** (lines 38-50): Three compiled regex patterns parse the router's JavaScript response:
+   - `lease_regex`: DHCP lease entries
+   - `arplist_regex`: ARP table entries
+   - `statics_regex`: Static IP assignments
+
+2. **`get_devices()`**: Core function that fetches and parses router data. Returns a dict with `arplist`, `lease`, and `statics` keys.
+
+3. **Format functions**: `format_json()`, `format_csv()`, `format_table()` handle output formatting.
+
+4. **`filter_by_interface()`**: Filters ARP list by network interface.
+
+5. **`main()`**: CLI entry point using argparse.
+
+### Data flow
+
+```
+Router HTML → Regex parsing → Dict structure → Format function → stdout
+```
+
+## Code Conventions
+
+- **Type hints**: All functions have type annotations
+- **Docstrings**: Google-style docstrings for public functions
+- **Logging**: Use `logger.debug()` for debug output, errors go to stderr
+- **Error handling**: Network errors caught in `main()`, return exit codes
+
+## Testing
+
+Tests are in `tests/test_devlist.py` using pytest with the `responses` library to mock HTTP requests.
+
+### Test structure
+
+- `TestRegexPatterns`: Verify regex patterns match expected formats
+- `TestGetRouterUrl`: URL building tests
+- `TestGetDevices`: Core parsing logic with mocked responses
+- `TestCLI`: Command-line interface tests
+- `TestOutputFormats`: Format function tests
+- `TestInterfaceFilter`: Filter function tests
+
+### Running tests
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run specific test class
+pytest tests/test_devlist.py::TestCLI -v
+
+# Run with coverage (if installed)
+pytest tests/ --cov=devlist
+```
+
+### Mock data
+
+`SAMPLE_ROUTER_RESPONSE` in the test file simulates actual Tomato router HTML output. Use this as reference for the expected format.
+
+## Common Tasks
+
+### Adding a new CLI flag
+
+1. Add `parser.add_argument()` in `main()`
+2. Update epilog examples
+3. Implement the feature
+4. Add tests in `TestCLI`
+
+### Adding a new output format
+
+1. Create `format_<name>(devices: dict) -> str` function
+2. Add choice to `--format` argument
+3. Add conditional in `main()` output section
+4. Add tests in `TestOutputFormats`
+
+### Modifying regex patterns
+
+1. Update the pattern string
+2. Test against `SAMPLE_ROUTER_RESPONSE` in tests
+3. Verify with `TestRegexPatterns` tests
+
+## Dependencies
+
+- **Runtime**: `requests` only
+- **Dev**: `pytest`, `pytest-mock`, `responses`
+
+## Router Response Format
+
+The Tomato router returns HTML with embedded JavaScript. Key variables:
+
+```javascript
+// DHCP leases: [name, ip, mac]
+var dhcpd_lease = [['hostname','192.168.1.x','AA:BB:CC:DD:EE:FF'], ...];
+
+// Static assignments: mac<ip<name (newline separated)
+var nvram = { dhcpd_static: 'AA:BB:CC:DD:EE:FF<192.168.1.x<hostname\n...' };
+
+// ARP list: [ip, mac, interface]
+var arplist = [['192.168.1.x','AA:BB:CC:DD:EE:FF','br0'], ...];
+```
+
+## Notes
+
+- SSL verification is disabled (`verify=False`) because Tomato routers use self-signed certificates
+- Default router IP is `192.168.1.1` but configurable via `--router` or `TOMATO_ROUTER_IP` env var
+- The `--interface` filter only affects `arplist`, not `lease` or `statics`
