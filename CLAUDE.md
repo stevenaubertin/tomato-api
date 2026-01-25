@@ -112,6 +112,47 @@ var nvram = { dhcpd_static: 'AA:BB:CC:DD:EE:FF<192.168.1.x<hostname\n...' };
 var arplist = [['192.168.1.x','AA:BB:CC:DD:EE:FF','br0'], ...];
 ```
 
+## Commit Convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). Always follow this format:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+```
+
+### Types
+
+| Type | Use for |
+|------|---------|
+| `feat` | New features |
+| `fix` | Bug fixes |
+| `docs` | Documentation changes |
+| `refactor` | Code changes that neither fix bugs nor add features |
+| `test` | Adding or updating tests |
+| `chore` | Maintenance tasks |
+
+### Rules
+
+- Use imperative mood: "add" not "added"
+- Lowercase type and description
+- No period at end
+- Keep description under 50 characters
+- Always include the co-author trailer
+
+### Examples
+
+```bash
+feat: add csv output format
+fix: handle empty arp list response
+docs: update installation instructions
+test: add tests for interface filter
+feat(cli): add --interface filter option
+```
+
 ## Notes
 
 - SSL verification is disabled (`verify=False`) because Tomato routers use self-signed certificates
