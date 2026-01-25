@@ -43,9 +43,9 @@ dev = [
 tomato-devlist = "src.devlist:main"
 
 [project.urls]
-Homepage = "https://github.com/x0r/tomato-api"
-Repository = "https://github.com/x0r/tomato-api"
-Issues = "https://github.com/x0r/tomato-api/issues"
+Homepage = "https://github.com/stevenaubertin/tomato-api"
+Repository = "https://github.com/stevenaubertin/tomato-api"
+Issues = "https://github.com/stevenaubertin/tomato-api/issues"
 
 [tool.setuptools]
 packages = ["src"]
