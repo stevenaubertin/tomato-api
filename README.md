@@ -5,6 +5,8 @@ Python CLI tool to fetch device information from Tomato Router firmware.
 ## Features
 
 - Fetch DHCP leases, static assignments, and ARP table entries
+- Fetch static DHCP configuration entries
+- Find unknown devices not in static DHCP list with MAC vendor lookup
 - Multiple output formats: JSON, CSV, and ASCII table
 - Filter results by network interface
 - Configurable router IP via CLI or environment variable
@@ -28,13 +30,23 @@ pip install .
 
 ## Usage
 
-### Basic usage
+The package provides three CLI commands:
+
+| Command | Description |
+|---------|-------------|
+| `tomato-devlist` | Fetch DHCP leases, ARP table, and static assignments |
+| `tomato-staticlist` | Fetch static DHCP configuration entries |
+| `tomato-unknown` | Find devices not in static DHCP list |
+
+### tomato-devlist
+
+Fetches device lists from the router.
 
 ```bash
 tomato-devlist <username> <password>
 ```
 
-### Options
+#### Options
 
 | Option | Short | Description |
 |--------|-------|-------------|
@@ -69,6 +81,67 @@ tomato-devlist admin password --interface br0
 tomato-devlist admin password --verbose
 ```
 
+### tomato-staticlist
+
+Fetches static DHCP configuration entries from the router.
+
+```bash
+tomato-staticlist <username> <password>
+```
+
+#### Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--router` | `-r` | Router IP address (default: 192.168.1.1) |
+| `--format` | `-f` | Output format: json, table (default: json) |
+| `--pretty` | `-p` | Pretty print JSON output |
+| `--verbose` | `-v` | Enable debug logging |
+
+#### Examples
+
+```bash
+# Default JSON output
+tomato-staticlist admin password
+
+# Table format
+tomato-staticlist admin password --format table
+
+# Pretty-printed JSON
+tomato-staticlist admin password --pretty
+```
+
+### tomato-unknown
+
+Finds connected devices that are not in the static DHCP list. Optionally looks up MAC address vendors.
+
+```bash
+tomato-unknown <username> <password>
+```
+
+#### Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--router` | `-r` | Router IP address (default: 192.168.1.1) |
+| `--format` | `-f` | Output format: json, table (default: table) |
+| `--pretty` | `-p` | Pretty print JSON output |
+| `--no-vendor` | `-n` | Skip MAC vendor lookup (faster) |
+| `--verbose` | `-v` | Enable debug logging |
+
+#### Examples
+
+```bash
+# Find unknown devices with vendor lookup
+tomato-unknown admin password
+
+# Skip vendor lookup for faster results
+tomato-unknown --no-vendor
+
+# JSON output
+tomato-unknown --format json --pretty
+```
+
 ### Environment variables
 
 | Variable | Description |
@@ -89,6 +162,8 @@ Then run without arguments:
 
 ```bash
 tomato-devlist --format table
+tomato-staticlist --format table
+tomato-unknown
 ```
 
 ## Output formats
@@ -151,16 +226,18 @@ pytest tests/ -v
 ```
 tomato-api/
 ├── src/
-│   ├── __init__.py      # Package exports
-│   ├── devlist.py       # Device list module
-│   └── staticlist.py    # Static DHCP entries module
+│   ├── __init__.py          # Package exports
+│   ├── devlist.py           # Device list module
+│   ├── staticlist.py        # Static DHCP entries module
+│   └── unknown_devices.py   # Unknown devices finder module
 ├── tests/
 │   ├── __init__.py
-│   ├── test_devlist.py  # Device list tests (38 tests)
-│   └── test_staticlist.py # Static list tests (26 tests)
-├── pyproject.toml       # Package configuration
-├── requirements.txt     # Dependencies
-├── .env                 # Environment variables (not in git)
+│   ├── test_devlist.py          # Device list tests
+│   ├── test_staticlist.py       # Static list tests
+│   └── test_unknown_devices.py  # Unknown devices tests
+├── pyproject.toml           # Package configuration
+├── requirements.txt         # Dependencies
+├── .env                     # Environment variables (not in git)
 └── README.md
 ```
 

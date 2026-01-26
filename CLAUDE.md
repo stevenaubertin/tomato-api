@@ -10,12 +10,13 @@ This file provides context for AI assistants working on this project.
 
 ### Module structure
 
-The application consists of two main modules in `src/`:
+The application consists of three main modules in `src/`:
 
 - **`devlist.py`**: Fetches device lists (DHCP leases, ARP table, static assignments) from `/status-devices.asp`
 - **`staticlist.py`**: Fetches static DHCP entries from `/basic-static.asp`
+- **`unknown_devices.py`**: Finds connected devices not in the static DHCP list, with MAC vendor lookup
 
-Both modules share `TLSAdapter` for legacy TLS support and follow the same patterns.
+All modules share `TLSAdapter` for legacy TLS support and follow the same patterns.
 
 ### Key components (devlist.py)
 
@@ -46,6 +47,16 @@ Both modules share `TLSAdapter` for legacy TLS support and follow the same patte
 
 5. **`main()`**: CLI entry point (`tomato-staticlist`).
 
+### Key components (unknown_devices.py)
+
+1. **`lookup_mac_vendor()`**: Queries maclookup.app API to identify device manufacturer from MAC address.
+
+2. **`find_unknown_devices()`**: Core function that compares ARP table against static DHCP list to find unregistered devices.
+
+3. **Format functions**: `format_json()`, `format_table()` for output.
+
+4. **`main()`**: CLI entry point (`tomato-unknown`).
+
 ### Data flow
 
 ```
@@ -65,8 +76,9 @@ Tests use pytest with the `responses` library to mock HTTP requests.
 
 ### Test files
 
-- **`tests/test_devlist.py`** (38 tests): Tests for the device list module
-- **`tests/test_staticlist.py`** (26 tests): Tests for the static list module
+- **`tests/test_devlist.py`**: Tests for the device list module
+- **`tests/test_staticlist.py`**: Tests for the static list module
+- **`tests/test_unknown_devices.py`**: Tests for the unknown devices module
 
 ### Test structure (devlist)
 
@@ -86,15 +98,23 @@ Tests use pytest with the `responses` library to mock HTTP requests.
 - `TestOutputFormats`: Format function tests
 - `TestCLI`: Command-line interface tests
 
+### Test structure (unknown_devices)
+
+- `TestLookupMacVendor`: MAC vendor API lookup tests
+- `TestFindUnknownDevices`: Core logic tests
+- `TestOutputFormats`: Format function tests
+- `TestCLI`: Command-line interface tests
+
 ### Running tests
 
 ```bash
-# Run all tests (64 total)
+# Run all tests
 pytest tests/ -v
 
 # Run specific module tests
 pytest tests/test_devlist.py -v
 pytest tests/test_staticlist.py -v
+pytest tests/test_unknown_devices.py -v
 
 # Run specific test class
 pytest tests/test_devlist.py::TestCLI -v
