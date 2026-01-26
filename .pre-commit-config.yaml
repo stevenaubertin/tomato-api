@@ -15,21 +15,19 @@ repos:
         args: ['--maxkb=1000']
       - id: check-merge-conflict
 
-  # Python syntax check only - catches real bugs
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
+  # Ruff - fast Python linter and formatter (replaces flake8, isort, black)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
     hooks:
-      - id: flake8
-        files: ^(src|tests)/
-        args: [
-          # Only critical errors that indicate bugs
-          '--select=F821,F822,F823,F631,F632,F633,F634,E999',
-          # F821: undefined name
-          # F822: undefined name in __all__
-          # F823: local variable referenced before assignment
-          # F631: assertion test is a tuple (always True)
-          # F632: use == to compare str, bytes, and int literals
-          # F633: use of >> is invalid with print function
-          # F634: if test is a tuple (always True)
-          # E999: syntax errors
-        ]
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        files: ^src/
+        additional_dependencies:
+          - types-requests>=2.31.0

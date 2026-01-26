@@ -1,25 +1,25 @@
 """Unit tests for devlist.py"""
 
 import json
+
 import pytest
+import requests
 import responses
 
 from src.devlist import (
-    get_devices,
-    get_router_url,
-    main,
-    lease_regex,
+    DEFAULT_ROUTER_IP,
     arplist_regex,
-    statics_regex,
+    filter_by_interface,
     flatten_devices,
     format_csv,
-    format_table,
     format_json,
-    filter_by_interface,
-    setup_logging,
-    DEFAULT_ROUTER_IP,
+    format_table,
+    get_devices,
+    get_router_url,
+    lease_regex,
+    main,
+    statics_regex,
 )
-
 
 # Sample router response HTML (simulates Tomato router output)
 SAMPLE_ROUTER_RESPONSE = """
@@ -208,7 +208,7 @@ class TestGetDevices:
             status=401,
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             get_devices("admin", "wrong", "192.168.1.1")
 
     @responses.activate
@@ -216,10 +216,10 @@ class TestGetDevices:
         responses.add(
             responses.GET,
             "https://192.168.1.1/status-devices.asp",
-            body=Exception("Connection refused"),
+            body=requests.exceptions.ConnectionError("Connection refused"),
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.ConnectionError):
             get_devices("admin", "password", "192.168.1.1")
 
 
@@ -385,31 +385,31 @@ class TestOutputFormats:
 
     def test_flatten_devices_includes_all_types(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [{'name': 'server', 'ip': '192.168.1.2', 'mac': 'AA:BB:CC:DD:EE:02'}],
-            'arplist': {
-                'br0': [{'name': 'phone', 'ip': '192.168.1.3', 'mac': 'AA:BB:CC:DD:EE:03'}]
-            }
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [{"name": "server", "ip": "192.168.1.2", "mac": "AA:BB:CC:DD:EE:02"}],
+            "arplist": {
+                "br0": [{"name": "phone", "ip": "192.168.1.3", "mac": "AA:BB:CC:DD:EE:03"}]
+            },
         }
 
         rows = flatten_devices(devices)
 
         assert len(rows) == 3
-        types = [r['type'] for r in rows]
-        assert 'lease' in types
-        assert 'static' in types
-        assert 'arp' in types
+        types = [r["type"] for r in rows]
+        assert "lease" in types
+        assert "static" in types
+        assert "arp" in types
 
     def test_flatten_devices_empty(self):
-        devices = {'lease': [], 'statics': [], 'arplist': {}}
+        devices = {"lease": [], "statics": [], "arplist": {}}
         rows = flatten_devices(devices)
         assert rows == []
 
     def test_format_csv_valid_output(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [],
-            'arplist': {}
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [],
+            "arplist": {},
         }
 
         output = format_csv(devices)
@@ -418,15 +418,15 @@ class TestOutputFormats:
         assert "lease,,pc,192.168.1.1,AA:BB:CC:DD:EE:01" in output
 
     def test_format_csv_empty(self):
-        devices = {'lease': [], 'statics': [], 'arplist': {}}
+        devices = {"lease": [], "statics": [], "arplist": {}}
         output = format_csv(devices)
         assert output == ""
 
     def test_format_table_has_headers(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [],
-            'arplist': {}
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [],
+            "arplist": {},
         }
 
         output = format_table(devices)
@@ -439,9 +439,9 @@ class TestOutputFormats:
 
     def test_format_table_has_data(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [],
-            'arplist': {}
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [],
+            "arplist": {},
         }
 
         output = format_table(devices)
@@ -451,17 +451,17 @@ class TestOutputFormats:
         assert "192.168.1.1" in output
 
     def test_format_table_empty(self):
-        devices = {'lease': [], 'statics': [], 'arplist': {}}
+        devices = {"lease": [], "statics": [], "arplist": {}}
         output = format_table(devices)
         assert output == "No devices found."
 
     def test_format_json_compact(self):
-        devices = {'lease': [], 'statics': [], 'arplist': {}}
+        devices = {"lease": [], "statics": [], "arplist": {}}
         output = format_json(devices, pretty=False)
         assert output == '{"lease": [], "statics": [], "arplist": {}}'
 
     def test_format_json_pretty(self):
-        devices = {'lease': [], 'statics': [], 'arplist': {}}
+        devices = {"lease": [], "statics": [], "arplist": {}}
         output = format_json(devices, pretty=True)
         assert "\n" in output
         assert "  " in output
@@ -472,56 +472,56 @@ class TestInterfaceFilter:
 
     def test_filter_by_interface_returns_matching(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [],
-            'arplist': {
-                'br0': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-                'br1': [{'name': 'phone', 'ip': '192.168.1.2', 'mac': 'AA:BB:CC:DD:EE:02'}],
-            }
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [],
+            "arplist": {
+                "br0": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+                "br1": [{"name": "phone", "ip": "192.168.1.2", "mac": "AA:BB:CC:DD:EE:02"}],
+            },
         }
 
-        filtered = filter_by_interface(devices, 'br0')
+        filtered = filter_by_interface(devices, "br0")
 
-        assert 'br0' in filtered['arplist']
-        assert 'br1' not in filtered['arplist']
-        assert len(filtered['arplist']['br0']) == 1
+        assert "br0" in filtered["arplist"]
+        assert "br1" not in filtered["arplist"]
+        assert len(filtered["arplist"]["br0"]) == 1
 
     def test_filter_by_interface_preserves_lease_and_statics(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [{'name': 'server', 'ip': '192.168.1.2', 'mac': 'AA:BB:CC:DD:EE:02'}],
-            'arplist': {
-                'br0': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            }
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [{"name": "server", "ip": "192.168.1.2", "mac": "AA:BB:CC:DD:EE:02"}],
+            "arplist": {
+                "br0": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            },
         }
 
-        filtered = filter_by_interface(devices, 'br0')
+        filtered = filter_by_interface(devices, "br0")
 
-        assert len(filtered['lease']) == 1
-        assert len(filtered['statics']) == 1
+        assert len(filtered["lease"]) == 1
+        assert len(filtered["statics"]) == 1
 
     def test_filter_by_interface_nonexistent_returns_empty_arplist(self):
         devices = {
-            'lease': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            'statics': [],
-            'arplist': {
-                'br0': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            }
+            "lease": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            "statics": [],
+            "arplist": {
+                "br0": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            },
         }
 
-        filtered = filter_by_interface(devices, 'br99')
+        filtered = filter_by_interface(devices, "br99")
 
-        assert filtered['arplist'] == {}
-        assert len(filtered['lease']) == 1
+        assert filtered["arplist"] == {}
+        assert len(filtered["lease"]) == 1
 
     def test_filter_by_interface_none_returns_unfiltered(self):
         devices = {
-            'lease': [],
-            'statics': [],
-            'arplist': {
-                'br0': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-                'br1': [{'name': 'phone', 'ip': '192.168.1.2', 'mac': 'AA:BB:CC:DD:EE:02'}],
-            }
+            "lease": [],
+            "statics": [],
+            "arplist": {
+                "br0": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+                "br1": [{"name": "phone", "ip": "192.168.1.2", "mac": "AA:BB:CC:DD:EE:02"}],
+            },
         }
 
         filtered = filter_by_interface(devices, None)
@@ -530,13 +530,13 @@ class TestInterfaceFilter:
 
     def test_filter_by_interface_empty_string_returns_unfiltered(self):
         devices = {
-            'lease': [],
-            'statics': [],
-            'arplist': {
-                'br0': [{'name': 'pc', 'ip': '192.168.1.1', 'mac': 'AA:BB:CC:DD:EE:01'}],
-            }
+            "lease": [],
+            "statics": [],
+            "arplist": {
+                "br0": [{"name": "pc", "ip": "192.168.1.1", "mac": "AA:BB:CC:DD:EE:01"}],
+            },
         }
 
-        filtered = filter_by_interface(devices, '')
+        filtered = filter_by_interface(devices, "")
 
         assert filtered == devices

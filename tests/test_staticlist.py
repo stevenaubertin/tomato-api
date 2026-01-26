@@ -1,20 +1,21 @@
 """Unit tests for staticlist.py"""
 
 import json
+
 import pytest
+import requests
 import responses
 
 from src.staticlist import (
-    get_static_list,
-    get_router_url,
-    parse_static_entries,
-    format_table,
-    format_json,
-    main,
     DEFAULT_ROUTER_IP,
     DHCPD_STATIC_REGEX,
+    format_json,
+    format_table,
+    get_router_url,
+    get_static_list,
+    main,
+    parse_static_entries,
 )
-
 
 # Sample router response HTML (simulates Tomato router output)
 SAMPLE_ROUTER_RESPONSE = """
@@ -50,21 +51,23 @@ class TestParseStaticEntries:
     """Test the parse_static_entries function."""
 
     def test_parse_valid_entries(self):
-        dhcpd_static = "AA:BB:CC:DD:EE:01<192.168.1.10<server<1>AA:BB:CC:DD:EE:02<192.168.1.20<desktop<1>"
+        dhcpd_static = (
+            "AA:BB:CC:DD:EE:01<192.168.1.10<server<1>AA:BB:CC:DD:EE:02<192.168.1.20<desktop<1>"
+        )
         entries = parse_static_entries(dhcpd_static)
 
         assert len(entries) == 2
-        assert entries[0]['mac'] == 'AA:BB:CC:DD:EE:01'
-        assert entries[0]['ip'] == '192.168.1.10'
-        assert entries[0]['name'] == 'server'
-        assert entries[0]['enabled'] is True
+        assert entries[0]["mac"] == "AA:BB:CC:DD:EE:01"
+        assert entries[0]["ip"] == "192.168.1.10"
+        assert entries[0]["name"] == "server"
+        assert entries[0]["enabled"] is True
 
     def test_parse_disabled_entry(self):
         dhcpd_static = "AA:BB:CC:DD:EE:03<192.168.1.30<disabled<0>"
         entries = parse_static_entries(dhcpd_static)
 
         assert len(entries) == 1
-        assert entries[0]['enabled'] is False
+        assert entries[0]["enabled"] is False
 
     def test_parse_empty_string(self):
         entries = parse_static_entries("")
@@ -75,7 +78,7 @@ class TestParseStaticEntries:
         entries = parse_static_entries(dhcpd_static)
 
         assert len(entries) == 1
-        assert entries[0]['name'] == 'server'
+        assert entries[0]["name"] == "server"
 
     def test_parse_entry_without_flag(self):
         # Some routers might not include the flag
@@ -83,7 +86,7 @@ class TestParseStaticEntries:
         entries = parse_static_entries(dhcpd_static)
 
         assert len(entries) == 1
-        assert entries[0]['enabled'] is True  # Default to enabled
+        assert entries[0]["enabled"] is True  # Default to enabled
 
 
 class TestDhcpdStaticRegex:
@@ -92,12 +95,12 @@ class TestDhcpdStaticRegex:
     def test_regex_matches_sample_response(self):
         match = DHCPD_STATIC_REGEX.search(SAMPLE_ROUTER_RESPONSE)
         assert match is not None
-        assert 'AA:BB:CC:DD:EE:01' in match.group(1)
+        assert "AA:BB:CC:DD:EE:01" in match.group(1)
 
     def test_regex_matches_empty_response(self):
         match = DHCPD_STATIC_REGEX.search(EMPTY_ROUTER_RESPONSE)
         assert match is not None
-        assert match.group(1) == ''
+        assert match.group(1) == ""
 
 
 class TestGetRouterUrl:
@@ -140,10 +143,10 @@ class TestGetStaticList:
 
         result = get_static_list("admin", "password", "192.168.1.1")
 
-        assert result[0]['mac'] == 'AA:BB:CC:DD:EE:01'
-        assert result[0]['ip'] == '192.168.1.10'
-        assert result[0]['name'] == 'server'
-        assert result[0]['enabled'] is True
+        assert result[0]["mac"] == "AA:BB:CC:DD:EE:01"
+        assert result[0]["ip"] == "192.168.1.10"
+        assert result[0]["name"] == "server"
+        assert result[0]["enabled"] is True
 
     @responses.activate
     def test_get_static_list_handles_disabled(self):
@@ -157,7 +160,7 @@ class TestGetStaticList:
         result = get_static_list("admin", "password", "192.168.1.1")
 
         # Third entry should be disabled
-        assert result[2]['enabled'] is False
+        assert result[2]["enabled"] is False
 
     @responses.activate
     def test_get_static_list_handles_empty_response(self):
@@ -180,7 +183,7 @@ class TestGetStaticList:
             status=401,
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             get_static_list("admin", "wrong", "192.168.1.1")
 
 
@@ -189,56 +192,60 @@ class TestOutputFormats:
 
     def test_format_table_has_headers(self):
         entries = [
-            {'mac': 'AA:BB:CC:DD:EE:01', 'ip': '192.168.1.10', 'name': 'server', 'enabled': True}
+            {"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.10", "name": "server", "enabled": True}
         ]
 
         output = format_table(entries)
 
-        assert 'NAME' in output
-        assert 'IP' in output
-        assert 'MAC' in output
-        assert 'ENABLED' in output
+        assert "NAME" in output
+        assert "IP" in output
+        assert "MAC" in output
+        assert "ENABLED" in output
 
     def test_format_table_has_data(self):
         entries = [
-            {'mac': 'AA:BB:CC:DD:EE:01', 'ip': '192.168.1.10', 'name': 'server', 'enabled': True}
+            {"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.10", "name": "server", "enabled": True}
         ]
 
         output = format_table(entries)
 
-        assert 'server' in output
-        assert '192.168.1.10' in output
-        assert 'AA:BB:CC:DD:EE:01' in output
-        assert 'yes' in output
+        assert "server" in output
+        assert "192.168.1.10" in output
+        assert "AA:BB:CC:DD:EE:01" in output
+        assert "yes" in output
 
     def test_format_table_shows_disabled(self):
         entries = [
-            {'mac': 'AA:BB:CC:DD:EE:01', 'ip': '192.168.1.10', 'name': 'server', 'enabled': False}
+            {"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.10", "name": "server", "enabled": False}
         ]
 
         output = format_table(entries)
 
-        assert 'no' in output
+        assert "no" in output
 
     def test_format_table_empty(self):
         output = format_table([])
         assert output == "No static entries found."
 
     def test_format_json_compact(self):
-        entries = [{'mac': 'AA:BB:CC:DD:EE:01', 'ip': '192.168.1.10', 'name': 'server', 'enabled': True}]
+        entries = [
+            {"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.10", "name": "server", "enabled": True}
+        ]
         output = format_json(entries, pretty=False)
 
         # Should be valid JSON
         data = json.loads(output)
         assert len(data) == 1
-        assert data[0]['name'] == 'server'
+        assert data[0]["name"] == "server"
 
     def test_format_json_pretty(self):
-        entries = [{'mac': 'AA:BB:CC:DD:EE:01', 'ip': '192.168.1.10', 'name': 'server', 'enabled': True}]
+        entries = [
+            {"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.1.10", "name": "server", "enabled": True}
+        ]
         output = format_json(entries, pretty=True)
 
-        assert '\n' in output
-        assert '  ' in output
+        assert "\n" in output
+        assert "  " in output
 
 
 class TestCLI:
@@ -291,8 +298,8 @@ class TestCLI:
         main(["admin", "password", "--format", "table"])
         captured = capsys.readouterr()
 
-        assert 'NAME' in captured.out
-        assert 'server' in captured.out
+        assert "NAME" in captured.out
+        assert "server" in captured.out
 
     @responses.activate
     def test_main_json_output_is_valid(self, capsys):
@@ -323,5 +330,5 @@ class TestCLI:
         main(["admin", "password", "--pretty"])
         captured = capsys.readouterr()
 
-        assert '\n' in captured.out
-        assert '  ' in captured.out
+        assert "\n" in captured.out
+        assert "  " in captured.out

@@ -7,28 +7,28 @@ import json
 import logging
 import os
 import re
-import sys
-from typing import Optional
-
 import ssl
+import sys
+from typing import Any, Optional
 
-from dotenv import load_dotenv
 import requests
+import urllib3
+from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
-import urllib3
 
 
 class TLSAdapter(HTTPAdapter):
     """Custom adapter to handle routers with legacy TLS configurations."""
 
-    def init_poolmanager(self, *args, **kwargs):
+    def init_poolmanager(self, *args: Any, **kwargs: Any) -> Any:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        ctx.set_ciphers('DEFAULT@SECLEVEL=1')
-        kwargs['ssl_context'] = ctx
+        ctx.set_ciphers("DEFAULT@SECLEVEL=1")
+        kwargs["ssl_context"] = ctx
         return super().init_poolmanager(*args, **kwargs)
+
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def setup_logging(verbose: bool = False) -> None:
 
     logging.basicConfig(
         level=level,
-        format='%(levelname)s: %(message)s',
+        format="%(levelname)s: %(message)s",
         stream=sys.stderr,
     )
     logger.setLevel(level)
@@ -54,19 +54,18 @@ def setup_logging(verbose: bool = False) -> None:
 # Regex patterns for parsing router response
 name_regex_str = r"[a-zA-Z0-9]*-?[a-zA-Z0-9]+"
 ipv4_regex_str = r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
-mac_regex_str = r"[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}"
+mac_regex_str = (
+    r"[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}"
+)
 
 lease_regex = re.compile(
-    r"\[('{}','{}','{}')".format(name_regex_str, ipv4_regex_str, mac_regex_str),
-    re.IGNORECASE | re.MULTILINE
+    rf"\[('{name_regex_str}','{ipv4_regex_str}','{mac_regex_str}')", re.IGNORECASE | re.MULTILINE
 )
 arplist_regex = re.compile(
-    r"'{}','{}','{}'".format(ipv4_regex_str, mac_regex_str, name_regex_str),
-    re.IGNORECASE | re.MULTILINE
+    rf"'{ipv4_regex_str}','{mac_regex_str}','{name_regex_str}'", re.IGNORECASE | re.MULTILINE
 )
 statics_regex = re.compile(
-    r"{}<{}<{}".format(mac_regex_str, ipv4_regex_str, name_regex_str),
-    re.IGNORECASE | re.MULTILINE
+    rf"{mac_regex_str}<{ipv4_regex_str}<{name_regex_str}", re.IGNORECASE | re.MULTILINE
 )
 
 # Default configuration
@@ -102,7 +101,7 @@ def get_devices(username: str, password: str, router_ip: str) -> dict:
 
     logger.debug(f"Connecting to router at {url}")
     session = requests.Session()
-    session.mount('https://', TLSAdapter())
+    session.mount("https://", TLSAdapter())
     response = session.get(url, auth=auth, verify=False, timeout=30)
     response.raise_for_status()
     logger.debug(f"Received response: {response.status_code} ({len(response.text)} bytes)")
@@ -110,93 +109,95 @@ def get_devices(username: str, password: str, router_ip: str) -> dict:
     devlist = response.text
 
     # Parse the response using regex
-    lease_matches = [str(i).replace("'", '').split(',') for i in lease_regex.findall(devlist)]
-    statics_matches = [str(i).replace("'", '').split('<') for i in statics_regex.findall(devlist)]
-    arplist_matches = [str(i).replace("'", '').split(',') for i in arplist_regex.findall(devlist)]
-    logger.debug(f"Parsed {len(lease_matches)} leases, {len(statics_matches)} statics, {len(arplist_matches)} arp entries")
+    lease_matches = [str(i).replace("'", "").split(",") for i in lease_regex.findall(devlist)]
+    statics_matches = [str(i).replace("'", "").split("<") for i in statics_regex.findall(devlist)]
+    arplist_matches = [str(i).replace("'", "").split(",") for i in arplist_regex.findall(devlist)]
+    logger.debug(
+        f"Parsed {len(lease_matches)} leases, {len(statics_matches)} statics, {len(arplist_matches)} arp entries"
+    )
 
     # Format lease entries
     leases = [
         {
-            'name': entry[0],
-            'mac': entry[1] if ':' in entry[1] else entry[2],
-            'ip': entry[1] if ':' in entry[2] else entry[2],
-        } for entry in lease_matches
+            "name": entry[0],
+            "mac": entry[1] if ":" in entry[1] else entry[2],
+            "ip": entry[1] if ":" in entry[2] else entry[2],
+        }
+        for entry in lease_matches
     ]
 
     # Format static entries
     statics = [
         {
-            'name': entry[-1],
-            'mac': entry[0] if ':' in entry[0] else entry[1],
-            'ip': entry[0] if ':' in entry[1] else entry[1],
-        } for entry in statics_matches
+            "name": entry[-1],
+            "mac": entry[0] if ":" in entry[0] else entry[1],
+            "ip": entry[0] if ":" in entry[1] else entry[1],
+        }
+        for entry in statics_matches
     ]
 
     # Helper to find device name by MAC address
     def find_name(mac: str) -> str:
         combined = statics + leases
-        matches = [device for device in combined if device['mac'] == mac]
-        return matches[0]['name'] if matches else ''
+        matches = [device for device in combined if device["mac"] == mac]
+        return matches[0]["name"] if matches else ""
 
     # Format arplist entries, grouped by interface
-    arplist = {}
+    arplist: dict[str, list[dict[str, str]]] = {}
     for entry in arplist_matches:
         interface = entry[-1]
         values = entry[:-1]
-        mac = values[0] if ':' in values[0] else values[1]
-        ip = values[1] if ':' in values[0] else values[0]
+        mac = values[0] if ":" in values[0] else values[1]
+        ip = values[1] if ":" in values[0] else values[0]
         name = find_name(mac)
 
-        device = {
-            'name': name,
-            'mac': mac,
-            'ip': ip
-        }
+        device = {"name": name, "mac": mac, "ip": ip}
 
         if interface in arplist:
             arplist[interface].append(device)
         else:
             arplist[interface] = [device]
 
-    return {
-        'arplist': arplist,
-        'lease': leases,
-        'statics': statics
-    }
+    return {"arplist": arplist, "lease": leases, "statics": statics}
 
 
 def flatten_devices(devices: dict) -> list:
     """Flatten device data into a list of rows with source type."""
     rows = []
 
-    for device in devices.get('lease', []):
-        rows.append({
-            'type': 'lease',
-            'interface': '',
-            'name': device['name'],
-            'ip': device['ip'],
-            'mac': device['mac'],
-        })
+    for device in devices.get("lease", []):
+        rows.append(
+            {
+                "type": "lease",
+                "interface": "",
+                "name": device["name"],
+                "ip": device["ip"],
+                "mac": device["mac"],
+            }
+        )
 
-    for device in devices.get('statics', []):
-        rows.append({
-            'type': 'static',
-            'interface': '',
-            'name': device['name'],
-            'ip': device['ip'],
-            'mac': device['mac'],
-        })
+    for device in devices.get("statics", []):
+        rows.append(
+            {
+                "type": "static",
+                "interface": "",
+                "name": device["name"],
+                "ip": device["ip"],
+                "mac": device["mac"],
+            }
+        )
 
-    for interface, interface_devices in devices.get('arplist', {}).items():
+    for interface, interface_devices in devices.get("arplist", {}).items():
         for device in interface_devices:
-            rows.append({
-                'type': 'arp',
-                'interface': interface,
-                'name': device['name'],
-                'ip': device['ip'],
-                'mac': device['mac'],
-            })
+            rows.append(
+                {
+                    "type": "arp",
+                    "interface": interface,
+                    "name": device["name"],
+                    "ip": device["ip"],
+                    "mac": device["mac"],
+                }
+            )
 
     return rows
 
@@ -208,7 +209,7 @@ def format_csv(devices: dict) -> str:
         return ""
 
     output = io.StringIO()
-    fieldnames = ['type', 'interface', 'name', 'ip', 'mac']
+    fieldnames = ["type", "interface", "name", "ip", "mac"]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     writer.writerows(rows)
@@ -221,32 +222,36 @@ def format_table(devices: dict) -> str:
     if not rows:
         return "No devices found."
 
-    headers = ['TYPE', 'INTERFACE', 'NAME', 'IP', 'MAC']
+    headers = ["TYPE", "INTERFACE", "NAME", "IP", "MAC"]
     col_widths = [
-        max(len(headers[0]), max(len(r['type']) for r in rows)),
-        max(len(headers[1]), max(len(r['interface']) for r in rows)),
-        max(len(headers[2]), max(len(r['name']) for r in rows)),
-        max(len(headers[3]), max(len(r['ip']) for r in rows)),
-        max(len(headers[4]), max(len(r['mac']) for r in rows)),
+        max(len(headers[0]), max(len(r["type"]) for r in rows)),
+        max(len(headers[1]), max(len(r["interface"]) for r in rows)),
+        max(len(headers[2]), max(len(r["name"]) for r in rows)),
+        max(len(headers[3]), max(len(r["ip"]) for r in rows)),
+        max(len(headers[4]), max(len(r["mac"]) for r in rows)),
     ]
 
-    def format_row(values):
-        return '  '.join(v.ljust(w) for v, w in zip(values, col_widths))
+    def format_row(values: list[str]) -> str:
+        return "  ".join(v.ljust(w) for v, w in zip(values, col_widths))
 
     lines = [
         format_row(headers),
-        format_row(['-' * w for w in col_widths]),
+        format_row(["-" * w for w in col_widths]),
     ]
     for row in rows:
-        lines.append(format_row([
-            row['type'],
-            row['interface'],
-            row['name'],
-            row['ip'],
-            row['mac'],
-        ]))
+        lines.append(
+            format_row(
+                [
+                    row["type"],
+                    row["interface"],
+                    row["name"],
+                    row["ip"],
+                    row["mac"],
+                ]
+            )
+        )
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def format_json(devices: dict, pretty: bool = False) -> str:
@@ -262,13 +267,13 @@ def filter_by_interface(devices: dict, interface: str) -> dict:
         return devices
 
     filtered_arplist = {}
-    if interface in devices.get('arplist', {}):
-        filtered_arplist[interface] = devices['arplist'][interface]
+    if interface in devices.get("arplist", {}):
+        filtered_arplist[interface] = devices["arplist"][interface]
 
     return {
-        'arplist': filtered_arplist,
-        'lease': devices.get('lease', []),
-        'statics': devices.get('statics', []),
+        "arplist": filtered_arplist,
+        "lease": devices.get("lease", []),
+        "statics": devices.get("statics", []),
     }
 
 
@@ -278,9 +283,9 @@ def main(argv: Optional[list] = None) -> int:
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        description='Fetch device information from a Tomato Router',
+        description="Fetch device information from a Tomato Router",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog="""
 Examples:
   %(prog)s                              # Use credentials from .env
   %(prog)s admin password               # Use explicit credentials
@@ -289,45 +294,44 @@ Examples:
   %(prog)s --format csv > devices.csv
   %(prog)s --interface br0
   %(prog)s --verbose
-        '''
+        """,
     )
     parser.add_argument(
-        'username',
-        nargs='?',
-        default=os.environ.get('TOMATO_USERNAME'),
-        help='Router admin username (default: $TOMATO_USERNAME)'
+        "username",
+        nargs="?",
+        default=os.environ.get("TOMATO_USERNAME"),
+        help="Router admin username (default: $TOMATO_USERNAME)",
     )
     parser.add_argument(
-        'password',
-        nargs='?',
-        default=os.environ.get('TOMATO_PASSWORD'),
-        help='Router admin password (default: $TOMATO_PASSWORD)'
+        "password",
+        nargs="?",
+        default=os.environ.get("TOMATO_PASSWORD"),
+        help="Router admin password (default: $TOMATO_PASSWORD)",
     )
     parser.add_argument(
-        '--router', '-r',
-        default=os.environ.get('TOMATO_ROUTER_IP', DEFAULT_ROUTER_IP),
-        help=f'Router IP address (default: $TOMATO_ROUTER_IP or {DEFAULT_ROUTER_IP})'
+        "--router",
+        "-r",
+        default=os.environ.get("TOMATO_ROUTER_IP", DEFAULT_ROUTER_IP),
+        help=f"Router IP address (default: $TOMATO_ROUTER_IP or {DEFAULT_ROUTER_IP})",
     )
     parser.add_argument(
-        '--format', '-f',
-        choices=['json', 'csv', 'table'],
-        default='json',
-        help='Output format (default: json)'
+        "--format",
+        "-f",
+        choices=["json", "csv", "table"],
+        default="json",
+        help="Output format (default: json)",
     )
     parser.add_argument(
-        '--pretty', '-p',
-        action='store_true',
-        help='Pretty print JSON output (only applies to json format)'
+        "--pretty",
+        "-p",
+        action="store_true",
+        help="Pretty print JSON output (only applies to json format)",
     )
     parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose output for debugging'
+        "--verbose", "-v", action="store_true", help="Enable verbose output for debugging"
     )
     parser.add_argument(
-        '--interface', '-i',
-        default=None,
-        help='Filter ARP list by interface (e.g., br0, br1)'
+        "--interface", "-i", default=None, help="Filter ARP list by interface (e.g., br0, br1)"
     )
 
     args = parser.parse_args(argv)
@@ -347,9 +351,9 @@ Examples:
             logger.debug(f"Filtering by interface: {args.interface}")
             devices = filter_by_interface(devices, args.interface)
 
-        if args.format == 'csv':
-            print(format_csv(devices), end='')
-        elif args.format == 'table':
+        if args.format == "csv":
+            print(format_csv(devices), end="")
+        elif args.format == "table":
             print(format_table(devices))
         else:
             print(format_json(devices, args.pretty))
@@ -360,7 +364,7 @@ Examples:
         print(f"Error: Could not connect to router at {args.router}", file=sys.stderr)
         return 1
     except requests.exceptions.Timeout:
-        print(f"Error: Connection to router timed out", file=sys.stderr)
+        print("Error: Connection to router timed out", file=sys.stderr)
         return 1
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
@@ -373,5 +377,5 @@ Examples:
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

@@ -9,8 +9,8 @@ import re
 import sys
 from typing import Optional
 
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
 
 from .devlist import TLSAdapter, setup_logging
@@ -42,16 +42,16 @@ def parse_static_entries(dhcpd_static: str) -> list:
 
     entries = []
     # Split by '>' to get individual entries, filter empty strings
-    raw_entries = [e for e in dhcpd_static.split('>') if e]
+    raw_entries = [e for e in dhcpd_static.split(">") if e]
 
     for raw in raw_entries:
-        parts = raw.split('<')
+        parts = raw.split("<")
         if len(parts) >= 3:
             entry = {
-                'mac': parts[0],
-                'ip': parts[1],
-                'name': parts[2],
-                'enabled': parts[3] == '1' if len(parts) > 3 else True
+                "mac": parts[0],
+                "ip": parts[1],
+                "name": parts[2],
+                "enabled": parts[3] == "1" if len(parts) > 3 else True,
             }
             entries.append(entry)
 
@@ -74,6 +74,7 @@ def get_static_list(username: str, password: str, router_ip: str) -> list:
         requests.RequestException: If the network request fails
     """
     import urllib3
+
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     url = get_router_url(router_ip)
@@ -81,7 +82,7 @@ def get_static_list(username: str, password: str, router_ip: str) -> list:
 
     logger.debug(f"Connecting to router at {url}")
     session = requests.Session()
-    session.mount('https://', TLSAdapter())
+    session.mount("https://", TLSAdapter())
     response = session.get(url, auth=auth, verify=False, timeout=30)
     response.raise_for_status()
     logger.debug(f"Received response: {response.status_code} ({len(response.text)} bytes)")
@@ -106,30 +107,34 @@ def format_table(entries: list) -> str:
     if not entries:
         return "No static entries found."
 
-    headers = ['NAME', 'IP', 'MAC', 'ENABLED']
+    headers = ["NAME", "IP", "MAC", "ENABLED"]
     col_widths = [
-        max(len(headers[0]), max(len(e['name']) for e in entries)),
-        max(len(headers[1]), max(len(e['ip']) for e in entries)),
-        max(len(headers[2]), max(len(e['mac']) for e in entries)),
+        max(len(headers[0]), max(len(e["name"]) for e in entries)),
+        max(len(headers[1]), max(len(e["ip"]) for e in entries)),
+        max(len(headers[2]), max(len(e["mac"]) for e in entries)),
         len(headers[3]),
     ]
 
-    def format_row(values):
-        return '  '.join(v.ljust(w) for v, w in zip(values, col_widths))
+    def format_row(values: list[str]) -> str:
+        return "  ".join(v.ljust(w) for v, w in zip(values, col_widths))
 
     lines = [
         format_row(headers),
-        format_row(['-' * w for w in col_widths]),
+        format_row(["-" * w for w in col_widths]),
     ]
     for entry in entries:
-        lines.append(format_row([
-            entry['name'],
-            entry['ip'],
-            entry['mac'],
-            'yes' if entry['enabled'] else 'no',
-        ]))
+        lines.append(
+            format_row(
+                [
+                    entry["name"],
+                    entry["ip"],
+                    entry["mac"],
+                    "yes" if entry["enabled"] else "no",
+                ]
+            )
+        )
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def format_json(entries: list, pretty: bool = False) -> str:
@@ -144,48 +149,44 @@ def main(argv: Optional[list] = None) -> int:
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        description='Fetch static DHCP entries from a Tomato Router',
+        description="Fetch static DHCP entries from a Tomato Router",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog="""
 Examples:
   %(prog)s                              # Use credentials from .env
   %(prog)s admin password               # Use explicit credentials
   %(prog)s --format table
   %(prog)s --router 192.168.0.1
-        '''
+        """,
     )
     parser.add_argument(
-        'username',
-        nargs='?',
-        default=os.environ.get('TOMATO_USERNAME'),
-        help='Router admin username (default: $TOMATO_USERNAME)'
+        "username",
+        nargs="?",
+        default=os.environ.get("TOMATO_USERNAME"),
+        help="Router admin username (default: $TOMATO_USERNAME)",
     )
     parser.add_argument(
-        'password',
-        nargs='?',
-        default=os.environ.get('TOMATO_PASSWORD'),
-        help='Router admin password (default: $TOMATO_PASSWORD)'
+        "password",
+        nargs="?",
+        default=os.environ.get("TOMATO_PASSWORD"),
+        help="Router admin password (default: $TOMATO_PASSWORD)",
     )
     parser.add_argument(
-        '--router', '-r',
-        default=os.environ.get('TOMATO_ROUTER_IP', DEFAULT_ROUTER_IP),
-        help=f'Router IP address (default: $TOMATO_ROUTER_IP or {DEFAULT_ROUTER_IP})'
+        "--router",
+        "-r",
+        default=os.environ.get("TOMATO_ROUTER_IP", DEFAULT_ROUTER_IP),
+        help=f"Router IP address (default: $TOMATO_ROUTER_IP or {DEFAULT_ROUTER_IP})",
     )
     parser.add_argument(
-        '--format', '-f',
-        choices=['json', 'table'],
-        default='json',
-        help='Output format (default: json)'
+        "--format",
+        "-f",
+        choices=["json", "table"],
+        default="json",
+        help="Output format (default: json)",
     )
+    parser.add_argument("--pretty", "-p", action="store_true", help="Pretty print JSON output")
     parser.add_argument(
-        '--pretty', '-p',
-        action='store_true',
-        help='Pretty print JSON output'
-    )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose output for debugging'
+        "--verbose", "-v", action="store_true", help="Enable verbose output for debugging"
     )
 
     args = parser.parse_args(argv)
@@ -200,7 +201,7 @@ Examples:
     try:
         entries = get_static_list(args.username, args.password, args.router)
 
-        if args.format == 'table':
+        if args.format == "table":
             print(format_table(entries))
         else:
             print(format_json(entries, args.pretty))
@@ -224,5 +225,5 @@ Examples:
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
