@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/.claude/settings.schema.json",
+  "_comment": "Claude Code settings for Python backend projects",
+  "env": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "hooks": {
+    "PreCommit": [
+      {
+        "command": "ruff check ."
+      },
+      {
+        "command": "ruff format --check ."
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "python",
+      "pip install",
+      "pip list",
+      "pytest",
+      "ruff check",
+      "ruff format",
+      "uvicorn"
+    ],
+    "deny": [
+      "pip install --break-system-packages",
+      "rm -rf /",
+      "python -c \"import os; os.system"
+    ]
+  }
+}
