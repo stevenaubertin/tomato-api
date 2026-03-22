@@ -1,0 +1,8 @@
+// Sanitized sample of Asus/Tomato router /status-devices.asp response
+// Used for unit testing router adapter parsing logic
+
+var dhcpLeaseMacList = [['swarm0','192.168.1.50','B8:27:EB:80:09:E3'],['laptop','192.168.1.100','AA:BB:CC:DD:EE:01'],['phone','192.168.1.101','AA:BB:CC:DD:EE:02']];
+
+var staticList = ['B8:27:EB:80:09:E3<192.168.1.50<swarm0','B8:27:EB:64:64:85<192.168.1.51<swarm1','B8:27:EB:C5:D2:7F<192.168.1.52<swarm2'];
+
+var arplist = ['192.168.1.50','B8:27:EB:80:09:E3','br0','192.168.1.51','B8:27:EB:64:64:85','br0','192.168.1.100','AA:BB:CC:DD:EE:01','br0';

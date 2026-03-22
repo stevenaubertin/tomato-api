@@ -46,6 +46,8 @@ dev = [
 tomato-devlist = "src.devlist:main"
 tomato-staticlist = "src.staticlist:main"
 tomato-unknown = "src.unknown_devices:main"
+tomato-find = "src.find_device:main"
+tomato-hostname = "src.hostname_lookup:main"
 
 [project.urls]
 Homepage = "https://github.com/stevenaubertin/tomato-api"
@@ -53,7 +55,7 @@ Repository = "https://github.com/stevenaubertin/tomato-api"
 Issues = "https://github.com/stevenaubertin/tomato-api/issues"
 
 [tool.setuptools]
-packages = ["src"]
+packages = ["src", "src.routers"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -96,7 +98,7 @@ show_error_codes = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["responses.*"]
+module = ["responses.*", "dotenv.*", "urllib3.*", "requests.*"]
 ignore_missing_imports = true
 
 [tool.ruff]
