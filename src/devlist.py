@@ -7,27 +7,18 @@ import json
 import logging
 import os
 import re
-import ssl
 import sys
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 import urllib3
 from dotenv import load_dotenv
-from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 
+from .routers.ssl_helpers import LegacySSLAdapter
 
-class TLSAdapter(HTTPAdapter):
-    """Custom adapter to handle routers with legacy TLS configurations."""
-
-    def init_poolmanager(self, *args: Any, **kwargs: Any) -> Any:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        ctx.set_ciphers("DEFAULT@SECLEVEL=1")
-        kwargs["ssl_context"] = ctx
-        return super().init_poolmanager(*args, **kwargs)
+# Backward-compatible alias
+TLSAdapter = LegacySSLAdapter
 
 
 # Module logger
@@ -101,7 +92,7 @@ def get_devices(username: str, password: str, router_ip: str) -> dict:
 
     logger.debug(f"Connecting to router at {url}")
     session = requests.Session()
-    session.mount("https://", TLSAdapter())
+    session.mount("https://", LegacySSLAdapter())
     response = session.get(url, auth=auth, verify=False, timeout=30)
     response.raise_for_status()
     logger.debug(f"Received response: {response.status_code} ({len(response.text)} bytes)")
